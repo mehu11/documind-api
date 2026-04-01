@@ -1,0 +1,169 @@
+{
+  "info": {
+    "name": "DocuMind API",
+    "description": "AI-Powered Document Q&A REST API — Upload documents, ask questions, get answers with source citations using RAG + Claude.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "description": "Set this after uploading a document",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🟢 Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health",
+        "description": "Check if the API server is running correctly."
+      },
+      "response": [
+        {
+          "name": "Success",
+          "status": "OK",
+          "code": 200,
+          "body": "{\n  \"status\": \"ok\",\n  \"service\": \"DocuMind API\",\n  \"version\": \"1.0.0\",\n  \"timestamp\": \"2025-01-15T10:00:00.000Z\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "📄 Documents",
+      "item": [
+        {
+          "name": "Upload Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.documentId) {",
+                  "  pm.collectionVariables.set('documentId', res.data.documentId);",
+                  "  console.log('documentId saved:', res.data.documentId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/documents/upload",
+            "description": "Upload a PDF or TXT file. The API will chunk it, generate embeddings, and store it in a vector store. The returned documentId is saved automatically to the collection variable.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Select a .pdf or .txt file from your machine"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Document uploaded and indexed successfully.\",\n  \"data\": {\n    \"documentId\": \"a1b2c3d4-...\",\n    \"name\": \"research-paper.pdf\",\n    \"type\": \"application/pdf\",\n    \"sizeBytes\": 204800,\n    \"chunkCount\": 42\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Documents",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/documents",
+            "description": "Returns all uploaded and indexed documents with their metadata."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"count\": 1,\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-...\",\n      \"name\": \"research-paper.pdf\",\n      \"type\": \"application/pdf\",\n      \"sizeBytes\": 204800,\n      \"chunkCount\": 42,\n      \"createdAt\": \"2025-01-15T10:00:00.000Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/documents/{{documentId}}",
+            "description": "Deletes a document and its vector embeddings. Also removes the uploaded file from disk."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Document \\\"research-paper.pdf\\\" deleted successfully.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔍 Query",
+      "item": [
+        {
+          "name": "Ask a Question",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/query",
+            "description": "Ask a natural language question about a previously uploaded document. The RAG pipeline retrieves the most relevant chunks and sends them with your question to Claude for a grounded answer.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentId\": \"{{documentId}}\",\n  \"question\": \"What is the main conclusion of this document?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"queryId\": \"q_1736938800000\",\n    \"documentId\": \"a1b2c3d4-...\",\n    \"documentName\": \"research-paper.pdf\",\n    \"question\": \"What is the main conclusion of this document?\",\n    \"answer\": \"Based on Chunk 2, the paper concludes that...\",\n    \"sources\": [\n      {\n        \"chunk\": 1,\n        \"preview\": \"The study found significant improvements...\",\n        \"metadata\": { \"source\": \"uploads/research-paper.pdf\", \"pdf_numpages\": 12 }\n      }\n    ],\n    \"timestamp\": \"2025-01-15T10:05:00.000Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Query History",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/query/history",
+            "description": "Returns all Q&A records from the current server session."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"count\": 2,\n  \"data\": [ ... ]\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
